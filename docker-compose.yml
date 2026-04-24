@@ -1,48 +1,42 @@
 version: '3.8'
 
 services:
-  # LanceDB Vector Database
-  lancedb:
-    image: sqlite:latest
-    container_name: drl-lancedb
-    ports:
-      - "8001:8000"
-    volumes:
-      - lancedb_data:/data
-    environment:
-      - LOG_LEVEL=INFO
-    networks:
-      - drl-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # RabbitMQ Message Queue
+  # RabbitMQ - Message Queue
   rabbitmq:
-    image: rabbitmq:3.12-management
-    container_name: drl-rabbitmq
+    image: rabbitmq:3.12-management-alpine
+    container_name: drl_rabbitmq
     ports:
-      - "5672:5672"      # AMQP port
-      - "15672:15672"    # Management UI
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Management UI (http://localhost:15672)
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - drl-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: rabbitmq-diagnostics -q ping
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
-  # Prometheus Monitoring
+  # Redis - Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: drl_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Prometheus - Metrics Collection
   prometheus:
     image: prom/prometheus:latest
-    container_name: drl-prometheus
+    container_name: drl_prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -51,84 +45,46 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-    networks:
-      - drl-network
-    depends_on:
-      - api
 
-  # Grafana Visualization
+  # Grafana - Visualization Dashboard
   grafana:
     image: grafana/grafana:latest
-    container_name: drl-grafana
+    container_name: drl_grafana
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
     volumes:
       - grafana_data:/var/lib/grafana
-    networks:
-      - drl-network
     depends_on:
       - prometheus
 
-  # FastAPI Backend
-  api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: drl-api
+  # PostgreSQL - Metadata Store (Optional)
+  postgres:
+    image: postgres:15-alpine
+    container_name: drl_postgres
     ports:
-      - "8000:8000"
+      - "5432:5432"
     environment:
-      - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=INFO
-      - LANCEDB_PATH=/data/vectordb
-      - RABBITMQ_HOST=rabbitmq
-      - CUDA_VISIBLE_DEVICES=0
+      POSTGRES_DB: drl_ppt_db
+      POSTGRES_USER: drl_user
+      POSTGRES_PASSWORD: drl_password
     volumes:
-      - ./src:/app/src
-      - ./data:/data
-      - ./logs:/app/logs
-    networks:
-      - drl-network
-    depends_on:
-      lancedb:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Streamlit Frontend
-  streamlit:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.streamlit
-    container_name: drl-streamlit
-    ports:
-      - "8501:8501"
-    environment:
-      - STREAMLIT_SERVER_PORT=8501
-      - API_HOST=api
-      - API_PORT=8000
-    volumes:
-      - ./src:/app/src
-      - ./app.py:/app/app.py
-    networks:
-      - drl-network
-    depends_on:
-      - api
+      test: ["CMD-SHELL", "pg_isready -U drl_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  lancedb_data:
   rabbitmq_data:
+  redis_data:
   prometheus_data:
   grafana_data:
+  postgres_data:
 
 networks:
-  drl-network:
-    driver: bridge
+  default:
+    name: drl_network

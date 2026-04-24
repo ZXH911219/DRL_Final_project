@@ -1,1 +1,3 @@
-"""Integration tests for end-to-end workflows."""
+"""Integration tests for agent cooperation."""
+
+__all__ = []
