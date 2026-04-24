@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drl-ppt-retrieval"
+version = "0.1.0"
+description = "Next-generation Multi-Agent Multi-Modal PPT Visual & Reasoning Retrieval System"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "DRL Team", email = "drl@example.com"}
+]
+
+keywords = [
+    "multi-agent",
+    "ppt-retrieval",
+    "vision-language-model",
+    "colpali",
+    "imagebind",
+    "mm-r5",
+    "argos",
+    "lancedb",
+    "rag"
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "torch>=2.1.0",
+    "transformers>=4.35.0",
+    "lancedb>=0.3.0",
+    "pydantic>=2.5.0",
+    "loguru>=0.7.0",
+    "pandas>=2.1.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "colpali-ort>=0.1.0",
+    "imagebind-large>=1.0.0",
+    "openai-clip>=1.0.0",
+]
+
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.0",
+]
+
+ui = [
+    "streamlit>=1.28.0",
+    "plotly>=5.18.0",
+]
+
+monitoring = [
+    "prometheus-client>=0.19.0",
+    "grafana-dashboard>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ZXH911219/DRL_Final_project"
+Documentation = "https://github.com/ZXH911219/DRL_Final_project/docs"
+Repository = "https://github.com/ZXH911219/DRL_Final_project"
+"Bug Tracker" = "https://github.com/ZXH911219/DRL_Final_project/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+
+[tool.isort]
+profile = "black"
+line_length = 100

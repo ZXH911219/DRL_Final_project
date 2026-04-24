@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # LanceDB Vector Database
+  lancedb:
+    image: sqlite:latest
+    container_name: drl-lancedb
+    ports:
+      - "8001:8000"
+    volumes:
+      - lancedb_data:/data
+    environment:
+      - LOG_LEVEL=INFO
+    networks:
+      - drl-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: drl-rabbitmq
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - drl-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: drl-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - drl-network
+    depends_on:
+      - api
+
+  # Grafana Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: drl-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - drl-network
+    depends_on:
+      - prometheus
+
+  # FastAPI Backend
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: drl-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - LANCEDB_PATH=/data/vectordb
+      - RABBITMQ_HOST=rabbitmq
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./src:/app/src
+      - ./data:/data
+      - ./logs:/app/logs
+    networks:
+      - drl-network
+    depends_on:
+      lancedb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Streamlit Frontend
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: drl-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - API_HOST=api
+      - API_PORT=8000
+    volumes:
+      - ./src:/app/src
+      - ./app.py:/app/app.py
+    networks:
+      - drl-network
+    depends_on:
+      - api
+
+volumes:
+  lancedb_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  drl-network:
+    driver: bridge
