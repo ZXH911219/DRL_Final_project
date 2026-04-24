@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "created": "2026-04-24T22:05:42.031488",
+  "batches": {
+    "batch_001": {
+      "created": "2026-04-24T22:06:28.234220",
+      "status": "completed",
+      "ppt_files": [
+        "/data/ppts/finance_report.pptx",
+        "/data/ppts/ml_applications.pptx"
+      ],
+      "total": 2,
+      "processed": 2,
+      "failed": 0,
+      "results": {
+        "/data/ppts/finance_report.pptx": {
+          "timestamp": "2026-04-24T22:06:28.253219",
+          "slides": 5,
+          "success": true
+        },
+        "/data/ppts/ml_applications.pptx": {
+          "timestamp": "2026-04-24T22:06:28.271220",
+          "slides": 5,
+          "success": true
+        }
+      }
+    }
+  },
+  "processed_ppts": {
+    "/data/ppts/finance_report.pptx": {
+      "batch_id": "batch_001",
+      "slides": 5,
+      "timestamp": "2026-04-24T22:06:28.253219"
+    },
+    "/data/ppts/ml_applications.pptx": {
+      "batch_id": "batch_001",
+      "slides": 5,
+      "timestamp": "2026-04-24T22:06:28.271220"
+    }
+  }
+}
