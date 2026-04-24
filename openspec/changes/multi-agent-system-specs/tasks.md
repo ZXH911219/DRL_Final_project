@@ -1,11 +1,11 @@
 ## 1. 基礎設施與環境準備（第 1-2 週）
 
-- [ ] 1.1 配置 Python 3.10+ 開發環境，安裝核心依賴（PyTorch 2.0+, Transformers）
+- [x] 1.1 配置 Python 3.10+ 開發環境，安裝核心依賴（PyTorch 2.0+, Transformers）
 - [ ] 1.2 部署 LanceDB 集群（本地開發環境或 Docker Compose），驗證集群連接與基本操作
 - [ ] 1.3 配置消息隊列（RabbitMQ 或 Kafka），建立隊列拓撲與連接池
 - [ ] 1.4 設置 GPU 計算資源配置（批量大小、記憶體分配、優化策略），驗證 GPU 可用性
-- [ ] 1.5 建立項目目錄結構與模組化架構（agents/, configs/, utils/, tests/）
-- [ ] 1.6 配置日誌系統（Loguru），定義結構化日誌格式與輸出目標
+- [x] 1.5 建立項目目錄結構與模組化架構（agents/, configs/, utils/, tests/）
+- [x] 1.6 配置日誌系統（Loguru），定義結構化日誌格式與輸出目標
 - [ ] 1.7 配置監控儀表板框架（Prometheus + Grafana），定義關鍵指標收集點
 
 ## 2. Vision-Ingestion-Agent 實現（第 3-4 週）

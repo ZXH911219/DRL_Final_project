@@ -1,0 +1,113 @@
+# DRL-Final Project Configuration
+
+# Python & Environment
+python_version: "3.10+"
+environment: "development"  # development, staging, production
+
+# Vision-Ingestion Agent
+vision_ingestion:
+  ppt_formats: [".pptx", ".odp", ".pdf"]
+  render_dpi: 600
+  render_size: [1024, 768]
+  colpali:
+    patch_grid: [32, 32]  # 1024 patches
+    vector_dim: 128
+  imagebind:
+    vector_dim: 1024
+  batch_size: 4
+  num_workers: 4
+  max_retries: 3
+  retry_backoff: exponential
+
+# LanceDB Configuration
+lancedb:
+  connection_type: "local"  # local, remote
+  db_path: "./data/vectordb"
+  index_type: "ivf"  # ivf, lsh, hybrid
+  vector_dim: 128
+  quantization_bits: 8
+  replica_count: 1
+  max_connections: 100
+
+# Retrieval Pipeline
+retrieval:
+  first_stage_k: 500
+  second_stage_k: 20
+  final_k: 10
+  maxsim_threshold: 0.5
+  hybrid_weights:
+    vector_score: 0.6
+    fts_score: 0.4
+  latency_targets:
+    first_stage_ms: 50
+    second_stage_ms: 100
+    total_ms: 200
+
+# Reasoning Agent
+reasoning:
+  model_name: "mm-r5-7b"
+  model_path: "./models/mm-r5"
+  batch_size: 4
+  inference_timeout_s: 30
+  beam_size: 3
+  temperature: 0.7
+  top_k_sampling: 50
+  prompt_template: "reasoning_cot_v1"
+
+# Verification Agent
+verification:
+  ocr_engine: "tesseract"  # tesseract, easyocr, paddle
+  hallucination_threshold: 0.45
+  coverage_threshold: 0.88
+  confidence_levels:
+    high: 0.85
+    medium: 0.65
+    low: 0.0
+
+# Message Queue Configuration
+message_queue:
+  broker_type: "rabbitmq"  # rabbitmq, kafka
+  host: "localhost"
+  port: 5672
+  username: "guest"
+  password: "guest"
+  queue_topics:
+    - "vision_output"
+    - "retrieval_input"
+    - "retrieval_output"
+    - "reasoning_input"
+    - "reasoning_output"
+    - "verification_input"
+  max_retries: 3
+
+# GPU Configuration
+gpu:
+  enabled: true
+  device_ids: [0]  # CUDA device IDs
+  memory_fraction: 0.8
+  tf32_enabled: true  # Tensor Float-32 for speedup
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "structured"  # json, structured, plain
+  output_path: "./logs"
+  retention_days: 30
+  max_file_size_mb: 500
+
+# Monitoring & Metrics
+monitoring:
+  prometheus_port: 8000
+  metrics_interval_s: 60
+  key_metrics:
+    - "retrieval_latency"
+    - "reasoning_quality"
+    - "hallucination_rate"
+    - "vector_consistency"
+
+# Development Options
+development:
+  debug_mode: false
+  profile_enabled: false
+  test_mode: false
+  sample_size: null  # null for full dataset, or integer for sampling
