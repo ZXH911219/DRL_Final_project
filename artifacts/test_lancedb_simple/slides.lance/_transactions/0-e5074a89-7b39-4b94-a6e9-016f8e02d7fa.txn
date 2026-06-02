@@ -1,0 +1,6 @@
+$e5074a89-7b39-4b94-a6e9-016f8e02d7fa²óslide_id ÿÿÿÿÿÿÿÿÿ*string8 deck_id ÿÿÿÿÿÿÿÿÿ*string8"
+page_index ÿÿÿÿÿÿÿÿÿ*int328$source_path ÿÿÿÿÿÿÿÿÿ*string8-
+created_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:UTC8Ncolpali_multi ÿÿÿÿÿÿÿÿÿ*.fixed_size_list:fixed_size_list:float:128:10248;colpali_agg_128 ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:1288<imagebind_vec ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:102408Mpatch_bboxes ÿÿÿÿÿÿÿÿÿ*,fixed_size_list:fixed_size_list:float:4:102408#fts_text	 ÿÿÿÿÿÿÿÿÿ*string08*quality_metrics
+ ÿÿÿÿÿÿÿÿÿ*string08"!
+lance.auto_cleanup.interval20"'
+lance.auto_cleanup.older_than14days

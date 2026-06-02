@@ -121,6 +121,7 @@ class LanceDBManager:
         table_name: str,
         vectors: np.ndarray,
         metadata: Optional[List[Dict[str, Any]]] = None,
+        overwrite: bool = False,
     ) -> bool:
         """
         Add vectors to table.
@@ -141,15 +142,28 @@ class LanceDBManager:
             # Prepare data
             data = []
             for i, vec in enumerate(vectors):
-                record = {"vector": vec.tolist()}
+                if hasattr(vec, "tolist"):
+                    vector_value = vec.tolist()
+                else:
+                    vector_value = list(vec)
+                record = {"vector": vector_value}
                 if metadata and i < len(metadata):
                     record.update(metadata[i])
                 data.append(record)
 
             # Get or create table
+            if overwrite:
+                self.create_table(table_name, data=data, overwrite=True)
+                return True
+
             if table_name not in self._tables:
-                self.create_table(table_name, data=data)
-            else:
+                try:
+                    self._tables[table_name] = self._db.open_table(table_name)
+                except Exception:
+                    self.create_table(table_name, data=data)
+                    return True
+
+            if table_name in self._tables:
                 self._tables[table_name].add(data)
 
             return True
@@ -245,6 +259,54 @@ class LanceDBManager:
         except Exception as e:
             print(f"ERROR listing tables: {e}")
             return []
+
+    def get_table(self, table_name: str):
+        """Open a table by name."""
+        if not self.is_connected():
+            return None
+
+        try:
+            return self._db.open_table(table_name)
+        except Exception as e:
+            print(f"ERROR opening table '{table_name}': {e}")
+            return None
+
+    def search_text(self, table_name: str, query_text: str, k: int = 10) -> List[Dict[str, Any]]:
+        """Simple keyword search over slide metadata and text content."""
+        if not self.is_connected() or not query_text.strip():
+            return []
+
+        table = self.get_table(table_name)
+        if table is None:
+            return []
+
+        try:
+            df = table.to_pandas()
+        except Exception as e:
+            print(f"ERROR reading table '{table_name}': {e}")
+            return []
+
+        query_tokens = [token for token in query_text.lower().split() if token]
+        results: List[Dict[str, Any]] = []
+
+        for _, row in df.iterrows():
+            haystack_parts = [
+                str(row.get("slide_id", "")),
+                str(row.get("title", "")),
+                str(row.get("text_content", "")),
+                str(row.get("metadata", "")),
+            ]
+            haystack = " ".join(haystack_parts).lower()
+            score = sum(1 for token in query_tokens if token in haystack)
+
+            if score > 0:
+                row_dict = row.to_dict()
+                row_dict["score"] = score / max(len(query_tokens), 1)
+                row_dict["title"] = row.get("title", "")
+                results.append(row_dict)
+
+        results.sort(key=lambda item: item.get("score", 0), reverse=True)
+        return results[:k]
 
     def get_table_info(self, table_name: str) -> Dict[str, Any]:
         """Get table information."""

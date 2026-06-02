@@ -5,6 +5,7 @@ Convert PPT slides to high-quality images using LibreOffice.
 
 import subprocess
 import tempfile
+import shutil
 from pathlib import Path
 from typing import List, Optional
 
@@ -48,12 +49,11 @@ class ImageRenderer:
 
         for path in possible_paths:
             try:
-                result = subprocess.run(
-                    [path, "--version"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                if result.returncode == 0:
+                if path == "soffice":
+                    resolved = shutil.which(path)
+                    if resolved:
+                        return resolved
+                elif Path(path).exists():
                     return path
             except Exception:
                 continue
@@ -90,8 +90,6 @@ class ImageRenderer:
 
         try:
             # Convert PPT to PDF first (intermediate format)
-            pdf_output = output_path / "temp.pdf"
-
             cmd = [
                 libreoffice,
                 "--headless",
@@ -103,6 +101,18 @@ class ImageRenderer:
             ]
 
             subprocess.run(cmd, capture_output=True, timeout=300)
+
+            # LibreOffice writes a PDF with the same base name into outdir.
+            # Detect the real PDF file produced instead of relying on a hardcoded name.
+            pdf_files = list(output_path.glob("*.pdf"))
+            if not pdf_files:
+                print("ERROR rendering PPT: no PDF produced by LibreOffice")
+                return []
+
+            # Prefer a PDF that matches the PPT base name
+            ppt_stem = Path(ppt_path).stem
+            matched = [p for p in pdf_files if p.stem == ppt_stem]
+            pdf_output = matched[0] if matched else pdf_files[0]
 
             # Then convert PDF to images
             return self._pdf_to_images(str(pdf_output), output_dir)

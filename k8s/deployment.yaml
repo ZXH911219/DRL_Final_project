@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drl-backend
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: drl-api
+        image: drl-api:latest

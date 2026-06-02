@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  # DRL API Service (Main Application)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: drl_api
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - DEVICE=cuda:0
+      - DATABASE_URL=postgresql://drl_user:drl_password@postgres:5432/drl_ppt_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - PROMETHEUS_ENABLED=true
+      - PROMETHEUS_HOST=prometheus
+      - PROMETHEUS_PORT=9090
+    volumes:
+      - ./src:/app/src
+      - ./configs:/app/configs
+      - ./models:/app/models
+      - ./feature_bundles:/app/feature_bundles
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      lancedb:
+        condition: service_started
+    networks:
+      - drl_network
+    restart: on-failure
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # RabbitMQ - Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: drl_rabbitmq
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - drl_network
+    restart: unless-stopped
+
+  # Redis - Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: drl_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - drl_network
+    restart: unless-stopped
+
+  # PostgreSQL - Metadata Store
+  postgres:
+    image: postgres:15-alpine
+    container_name: drl_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: drl_ppt_db
+      POSTGRES_USER: drl_user
+      POSTGRES_PASSWORD: drl_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drl_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - drl_network
+    restart: unless-stopped
+
+  # LanceDB - Vector Database
+  lancedb:
+    image: lancedb/lancedb:latest
+    container_name: drl_lancedb
+    ports:
+      - "8081:8081"
+    volumes:
+      - lancedb_data:/data
+    environment:
+      - DATA_DIR=/data
+    networks:
+      - drl_network
+    restart: unless-stopped
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: drl_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - drl_network
+    restart: unless-stopped
+
+  # Grafana - Visualization Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: drl_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana_provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - drl_network
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  lancedb_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  drl_network:
+    driver: bridge
+    name: drl_network

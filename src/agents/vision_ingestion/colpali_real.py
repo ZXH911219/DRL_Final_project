@@ -37,30 +37,89 @@ class RealColPaliExtractor:
             True if successful, False otherwise
         """
         try:
-            from transformers import AutoModel, AutoProcessor
+            from transformers import AutoModel, AutoProcessor, AutoFeatureExtractor, AutoImageProcessor, AutoTokenizer
 
             logger.info(f"Loading ColPali from {self.model_path}")
 
-            self.processor = AutoProcessor.from_pretrained(
-                self.model_path,
-                return_tensors="pt",
-                padding=True,
-            )
-            
-            self.model = AutoModel.from_pretrained(
-                self.model_path,
-                trust_remote_code=True,
-            )
+            # Try AutoProcessor first (preferred)
+            try:
+                self.processor = AutoProcessor.from_pretrained(
+                    self.model_path,
+                    return_tensors="pt",
+                    padding=True,
+                )
+                logger.info("Loaded processor via AutoProcessor")
+            except Exception:
+                # Fallbacks: try feature extractor / image processor / tokenizer
+                img_proc = None
+                tokenizer = None
+                try:
+                    img_proc = AutoFeatureExtractor.from_pretrained(self.model_path)
+                    logger.info("Loaded processor via AutoFeatureExtractor")
+                except Exception:
+                    try:
+                        img_proc = AutoImageProcessor.from_pretrained(self.model_path)
+                        logger.info("Loaded processor via AutoImageProcessor")
+                    except Exception:
+                        img_proc = None
 
-            self.model.to(self.device)
-            self.model.eval()
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+                    logger.info("Loaded tokenizer as part of fallback processor")
+                except Exception:
+                    tokenizer = None
 
-            self.is_ready = True
-            logger.info("ColPali model ready")
-            return True
+                # Create a minimal processor wrapper that calls the available component
+                class _MinimalProcessor:
+                    def __init__(self, img_proc, tokenizer):
+                        self.image_processor = img_proc
+                        self.tokenizer = tokenizer
+
+                    def __call__(self, images=None, return_tensors="pt", **kwargs):
+                        if self.image_processor:
+                            # Many image processors return {'pixel_values': Tensor}
+                            return self.image_processor(images=images, return_tensors=return_tensors, **kwargs)
+                        raise RuntimeError("No image processor available in minimal processor")
+
+                self.processor = _MinimalProcessor(img_proc, tokenizer)
+
+            # Load model with trust_remote_code; allow lower-memory options if needed
+            try:
+                self.model = AutoModel.from_pretrained(
+                    self.model_path,
+                    trust_remote_code=True,
+                )
+            except Exception as e_model:
+                logger.warning(f"AutoModel direct load failed: {e_model}; retrying with low_cpu_mem_usage")
+                try:
+                    self.model = AutoModel.from_pretrained(
+                        self.model_path,
+                        trust_remote_code=True,
+                        low_cpu_mem_usage=True,
+                    )
+                except Exception as e2:
+                    logger.error(f"Model load retries failed: {e2}")
+                    return False
+
+            # Move model to device if possible
+            try:
+                import torch
+                if self.device == "cpu" or not torch.cuda.is_available():
+                    self.model.to("cpu")
+                    self.device = "cpu"
+                else:
+                    self.model.to(self.device)
+
+                self.model.eval()
+                self.is_ready = True
+                logger.info("ColPali model ready")
+                return True
+            except Exception as e_dev:
+                logger.error(f"Failed to move model to device: {e_dev}")
+                return False
 
         except Exception as e:
-            logger.error(f"Failed to initialize ColPali: {str(e)}")
+            logger.error(f"Failed to initialize ColPali (overall): {str(e)}")
             return False
 
     def extract_features_from_image(

@@ -74,6 +74,23 @@ class PPTParser:
 
         slide = self._ppt_obj.slides[slide_idx]
 
+        def _collect_shape_text(shape) -> str:
+            parts = []
+            if hasattr(shape, "text") and shape.text:
+                parts.append(shape.text)
+            if hasattr(shape, "text_frame") and shape.text_frame:
+                frame_text = shape.text_frame.text
+                if frame_text:
+                    parts.append(frame_text)
+            return " ".join(part.strip() for part in parts if part and part.strip())
+
+        title_text = ""
+        if hasattr(slide, "shapes") and getattr(slide.shapes, "title", None) is not None:
+            try:
+                title_text = slide.shapes.title.text.strip()
+            except Exception:
+                title_text = ""
+
         metadata = {
             "slide_id": f"slide_{slide_idx}",
             "page_index": slide_idx,
@@ -82,13 +99,20 @@ class PPTParser:
             "timestamp": None,
             "shapes_count": len(slide.shapes),
             "has_notes": bool(slide.notes_slide.notes_text_frame.text) if slide.notes_slide else False,
+            "title": title_text,
         }
 
         # Extract text content
         text_content = []
         for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text:
-                text_content.append(shape.text)
+            shape_text = _collect_shape_text(shape)
+            if shape_text:
+                text_content.append(shape_text)
+
+        if slide.notes_slide and slide.notes_slide.notes_text_frame:
+            notes_text = slide.notes_slide.notes_text_frame.text.strip()
+            if notes_text:
+                text_content.append(notes_text)
 
         metadata["text_content"] = " ".join(text_content)
 
@@ -112,6 +136,13 @@ class PPTParser:
         for shape in slide.shapes:
             if hasattr(shape, "text") and shape.text:
                 text_parts.append(shape.text)
+            if hasattr(shape, "text_frame") and shape.text_frame and shape.text_frame.text:
+                text_parts.append(shape.text_frame.text)
+
+        if slide.notes_slide and slide.notes_slide.notes_text_frame:
+            notes_text = slide.notes_slide.notes_text_frame.text.strip()
+            if notes_text:
+                text_parts.append(notes_text)
 
         return " ".join(text_parts)
 

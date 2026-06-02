@@ -5,7 +5,22 @@ Extract multi-vector representations using ColPali and align with ImageBind.
 
 from typing import Any, Dict, List, Optional, Tuple
 
+import tempfile
+from pathlib import Path
+
 import numpy as np
+
+try:
+    from src.models.model_loaders import ColPaliLoader, ImageBindLoader
+except Exception:
+    ColPaliLoader = None
+    ImageBindLoader = None
+
+# Prefer the project's RealColPali implementation if available (loads via transformers from local snapshot)
+try:
+    from src.agents.vision_ingestion.colpali_real import RealColPaliExtractor
+except Exception:
+    RealColPaliExtractor = None
 
 
 class ColPaliExtractor:
@@ -23,13 +38,24 @@ class ColPaliExtractor:
         self.device = device
         self.model = None
         self.processor = None
+        self.loader = None
 
     def load_model(self) -> bool:
         """Load ColPali model."""
         try:
             print(f"Loading ColPali model: {self.model_name}...")
-            # Placeholder for ColPali model loading
-            # In production, would use actual ColPali library
+            if ColPaliLoader is not None:
+                # Instantiate loader with default model path
+                model_path = Path("./models/colpali")
+                loader = ColPaliLoader(model_path, {"name": self.model_name})
+                loaded = loader.load()
+                # Ensure loader.model is set even if loader.load returned a mock dict
+                if getattr(loader, "model", None) is None and isinstance(loaded, dict):
+                    loader.model = loaded
+                self.loader = loader
+                print("✓ ColPali loader initialized")
+                return True
+            # Fallback to simulated
             print(f"✓ ColPali model loaded (simulated)")
             return True
         except ImportError:
@@ -44,6 +70,7 @@ class ColPaliExtractor:
         image_array: np.ndarray,
         num_patches: int = 1024,
         feature_dim: int = 128,
+        image_path: Optional[str] = None,
     ) -> np.ndarray:
         """
         Extract multi-vector features from image.
@@ -56,13 +83,17 @@ class ColPaliExtractor:
         Returns:
             Multi-vector array of shape (num_patches, feature_dim)
         """
-        # Placeholder implementation
-        # In production, would use actual ColPali inference
+        # If a real loader is available, use it (expects an image path)
+        if self.loader is not None and hasattr(self.loader, "process_image") and image_path:
+            try:
+                vectors = self.loader.process_image(image_path)
+                return vectors.astype(np.float32)
+            except Exception:
+                pass
+
+        # Otherwise, fallback to simulated vectors
         features = np.random.randn(num_patches, feature_dim).astype(np.float32)
-
-        # Normalize to unit vectors
         features = features / (np.linalg.norm(features, axis=1, keepdims=True) + 1e-8)
-
         return features
 
 
@@ -80,12 +111,23 @@ class ImageBindAligner:
         self.model_name = model_name
         self.output_dim = output_dim
         self.model = None
+        self.loader = None
 
     def load_model(self) -> bool:
         """Load ImageBind model."""
         try:
             print(f"Loading ImageBind model: {self.model_name}...")
-            # Placeholder for ImageBind model loading
+            if ImageBindLoader is not None:
+                model_path = Path("./models/imagebind")
+                loader = ImageBindLoader(model_path, {"name": self.model_name})
+                loaded = loader.load()
+                if getattr(loader, "model", None) is None and isinstance(loaded, dict):
+                    loader.model = loaded
+                self.loader = loader
+                print("✓ ImageBind loader initialized")
+                return True
+
+            # Fallback
             print(f"✓ ImageBind model loaded (simulated)")
             return True
         except ImportError:
@@ -99,6 +141,7 @@ class ImageBindAligner:
         self,
         colpali_vectors: np.ndarray,
         text_vectors: Optional[np.ndarray] = None,
+        image_path: Optional[str] = None,
     ) -> Tuple[np.ndarray, float]:
         """
         Align ColPali vectors to ImageBind space.
@@ -120,14 +163,25 @@ class ImageBindAligner:
         # Weighted combination (75% mean, 25% max)
         aggregated = 0.75 * mean_vec + 0.25 * max_vec  # (128,)
 
-        # Project to output dimension via random matrix
-        # In production, would use learned ImageBind projection
-        np.random.seed(42)
-        projection_matrix = np.random.randn(128, self.output_dim).astype(np.float32)
-        projection_matrix = projection_matrix / np.linalg.norm(projection_matrix, axis=0, keepdims=True)
+        # If a real ImageBind loader is available and an image path is provided,
+        # prefer using its `embed_image` to obtain a true multi-modal embedding.
+        if self.loader is not None and hasattr(self.loader, "embed_image") and image_path:
+            try:
+                img_emb = self.loader.embed_image(image_path)
+                # Normalize and use as aligned vector
+                aligned = img_emb / (np.linalg.norm(img_emb) + 1e-8)
+            except Exception:
+                aligned = None
+        else:
+            aligned = None
 
-        aligned = aggregated @ projection_matrix  # (output_dim,)
-        aligned = aligned / (np.linalg.norm(aligned) + 1e-8)
+        if aligned is None:
+            # Project to output dimension via random matrix (fallback)
+            np.random.seed(42)
+            projection_matrix = np.random.randn(128, self.output_dim).astype(np.float32)
+            projection_matrix = projection_matrix / np.linalg.norm(projection_matrix, axis=0, keepdims=True)
+            aligned = aggregated @ projection_matrix  # (output_dim,)
+            aligned = aligned / (np.linalg.norm(aligned) + 1e-8)
 
         # Compute consistency score
         # Base score from aggregation quality
@@ -207,6 +261,7 @@ def extract_visual_features(
     slide_id: str,
     page_index: int,
     metadata: Optional[Dict[str, Any]] = None,
+    image_path: Optional[str] = None,
 ) -> Optional[VisualFeatureBundle]:
     """
     Extract complete visual feature bundle.
@@ -221,15 +276,32 @@ def extract_visual_features(
         VisualFeatureBundle or None on error
     """
     try:
-        # Extract multi-vectors
-        colpali = ColPaliExtractor()
-        colpali.load_model()
-        multi_vectors = colpali.extract_features(image_array)
+        # Try using the RealColPaliExtractor (loads from local snapshot via transformers) when available
+        multi_vectors = None
+        colpali_confidence = None
+
+        if RealColPaliExtractor is not None:
+            try:
+                model_dir = Path("./models/models--vidore--colpali")
+                if model_dir.exists():
+                    real_extractor = RealColPaliExtractor(model_path=str(model_dir), device=("cuda" if __import__("torch").cuda.is_available() else "cpu"))
+                    initialized = real_extractor.initialize()
+                    if initialized:
+                        mv, colpali_confidence = real_extractor.extract_features_from_image(image_array)
+                        multi_vectors = mv
+            except Exception:
+                multi_vectors = None
+
+        # Fallback to existing ColPaliExtractor (mock or loader based)
+        if multi_vectors is None:
+            colpali = ColPaliExtractor()
+            colpali.load_model()
+            multi_vectors = colpali.extract_features(image_array, image_path=image_path)
 
         # Align to ImageBind space
         aligner = ImageBindAligner()
         aligner.load_model()
-        imagebind_vector, consistency = aligner.align_vectors(multi_vectors)
+        imagebind_vector, consistency = aligner.align_vectors(multi_vectors, image_path=image_path)
 
         # Create bundle
         bundle = VisualFeatureBundle(

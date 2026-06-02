@@ -1,0 +1,20 @@
+# 專案目標：跨 PPT 關鍵字與圖片檢索系統 (Research Log Retrieval System)
+
+## 專案背景
+使用者是一位控制組碩士生，每週進行 Meeting 報告。本專案旨在解決長期累積的日期命名 PPT 難以檢索的問題，透過 AI 實現語義搜尋。
+
+## 核心功能需求
+1. 檔案處理：自動遍歷資料夾內的 .pptx，提取文字與圖片。
+2. 向量化索引：使用 ChromaDB 與多模態模型（如 CLIP 或 Sentence-Transformers）進行索引。
+3. 語義檢索：支援關鍵字搜尋，即使文字不完全匹配也能找到相關內容（例如搜尋「收斂」找到「穩定性」相關投影片）。
+4. 預覽介面：使用 Streamlit 顯示搜尋結果與投影片縮圖。
+
+## 技術約束
+- 語言：Python 3.10 (Anaconda 環境: ppt_retrieval_env)
+- 框架：python-pptx, chromadb, streamlit, openai-api (或本地模型)
+- 規範：遵循 @fission-ai/openspec 介面定義。
+
+## 互動準則
+- 請始終使用繁體中文回答。
+- 程式碼需保持簡潔，並加入必要的註釋。
+- 在修改檔案前，請先確認是否符合 project.md 的進度。

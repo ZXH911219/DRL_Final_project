@@ -1,0 +1,6 @@
+# 確保 PYTHONPATH 設定
+set PYTHONPATH=.
+python -c "import src.storage; print('成功讀取儲存模組')"
+
+1.lancedb
+pip install lancedb pyarrow numpy pydantic-settings

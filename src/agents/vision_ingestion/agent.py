@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from ...utils import get_logger, get_lancedb_manager
 
 
@@ -90,8 +92,6 @@ class VisionIngestionAgent:
                         result["warnings"].append(f"Missing image for slide {slide_idx}")
                         continue
 
-                    import numpy as np
-
                     img_array = renderer.load_image_as_array(image_path)
                     if img_array is None:
                         self.logger.warning(f"Failed to load image for slide {slide_idx}")
@@ -106,6 +106,7 @@ class VisionIngestionAgent:
                         slide_id=f"slide_{slide_idx}",
                         page_index=slide_idx,
                         metadata=metadata,
+                        image_path=image_path,
                     )
 
                     if features:
@@ -121,26 +122,52 @@ class VisionIngestionAgent:
 
             # Step 5: Store features in vector database
             self.logger.info("Step 4: Storing features in vector database...")
-            if features_list and self.lancedb.is_connected():
+            if self.lancedb.is_connected() and total_slides > 0:
                 try:
-                    # Create table for this batch
-                    table_name = f"slides_{batch_id}" if batch_id else "slides"
+                    # Use one shared table so search always targets indexed uploads.
+                    table_name = "slides"
 
-                    # Prepare data for storage
-                    data = []
-                    for features in features_list:
-                        data.append({
-                            "slide_id": features.slide_id,
-                            "page_index": features.page_index,
-                            "multi_vectors": features.multi_vectors,
-                            "imagebind_vector": features.imagebind_vector,
-                            "metadata": features.metadata,
-                        })
+                    if features_list:
+                        vectors = [f.imagebind_vector for f in features_list]
+                        metadata_list = []
+                        for features in features_list:
+                            metadata = dict(features.metadata)
+                            metadata["slide_id"] = features.slide_id
+                            metadata["page_index"] = features.page_index
+                            metadata["text_content"] = metadata.get("text_content", "")
+                            metadata_list.append(metadata)
 
-                    # Store in database
-                    self.lancedb.add_vectors(table_name, [f.imagebind_vector for f in features_list])
-                    self.logger.info(f"Stored {len(features_list)} feature vectors")
-                    result["slides_processed"] = len(features_list)
+                        # Store vector-based records
+                        self.lancedb.add_vectors(table_name, vectors, metadata=metadata_list, overwrite=True)
+                        self.logger.info(f"Stored {len(vectors)} slide records")
+                        result["slides_processed"] = len(vectors)
+                    else:
+                        self.logger.warning("No rendered features available; storing text-only fallback records")
+                        from ..multimodal_space.vector_alignment import ImageBindSpace
+
+                        text_encoder = ImageBindSpace(output_dim=128)
+                        vectors = []
+                        metadata_list = []
+                        for slide_idx in range(total_slides):
+                            metadata = parser.get_slide_metadata(slide_idx)
+                            metadata["slide_id"] = metadata.get("slide_id", f"slide_{slide_idx}")
+                            metadata["page_index"] = slide_idx
+                            metadata["text_content"] = metadata.get("text_content", "")
+                            combined_text = " ".join(
+                                part for part in [metadata.get("title", ""), metadata.get("text_content", "")] if part
+                            ).strip()
+                            if combined_text:
+                                vector = text_encoder.encode_text(combined_text)
+                            else:
+                                vector = np.zeros(128, dtype=np.float32)
+                            vectors.append(vector)
+                            metadata_list.append(metadata)
+
+                        self.lancedb.add_vectors(table_name, vectors, metadata=metadata_list, overwrite=True)
+
+                        self.logger.info(f"Stored {len(metadata_list)} text-only slide records")
+                        result["slides_processed"] = len(metadata_list)
+                        result["warnings"].append("Stored text-only fallback records because image rendering was unavailable")
 
                 except Exception as e:
                     self.logger.error(f"Error storing features: {e}")
