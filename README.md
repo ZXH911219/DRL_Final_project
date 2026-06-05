@@ -2,6 +2,13 @@
 
 這個專案的核心流程已經可在 stub 模式下運作。若你要在 Windows 上建立完整環境，建議採用以下「不依賴 Chocolatey」的手動安裝流程。
 
+## Live Demo
+
+已部署於 Streamlit Community Cloud（線上示範）：
+
+- https://automated-powerpoint-management-system.streamlit.app/
+
+
 ## 1. Windows 系統層套件
 
 請先安裝下列系統工具，並確保它們可在 `cmd` 中被找到：
