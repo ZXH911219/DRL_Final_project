@@ -12,7 +12,7 @@ streamlit>=1.28.0
 watchdog>=4.0.0
 
 # Windows-only optional backend for higher-fidelity PPTX rendering via PowerPoint COM
-pywin32>=306; platform_system == "Windows"
+pywin32>=312; platform_system == "Windows"
 
 # Optional model inference stack
 torch>=2.1.0
