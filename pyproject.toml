@@ -5,7 +5,7 @@ description = "次世代多模態 PPT 視覺與推理檢索系統（規格實作
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "pydantic>=2.11,<2.13",
+    "pydantic>=2.11,<2.14",
     "lancedb>=0.14",
     "pyarrow>=14.0",
     "numpy>=1.24",

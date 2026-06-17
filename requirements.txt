@@ -1,5 +1,5 @@
 # Core runtime dependencies for the end-to-end pipeline
-pydantic>=2.11,<2.13
+pydantic>=2.11,<2.14
 lancedb>=0.14
 pyarrow>=14.0
 numpy>=1.24
