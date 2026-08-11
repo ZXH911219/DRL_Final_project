@@ -1,6 +1,6 @@
 # Multi-stage build for DRL API Services
 # Stage 1: Builder
-FROM python:3.10-slim as builder
+FROM python:3.14-slim as builder
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
-FROM python:3.10-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
