@@ -51,7 +51,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
+      uses: azure/setup-kubectl@v5
     - name: Authenticate to cluster
       run: echo "Authenticating"
     - name: Deploy to Kubernetes
